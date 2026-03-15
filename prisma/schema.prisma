@@ -1,0 +1,61 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Game {
+  id             String    @id @default(cuid())
+  videoId        String
+  videoTitle     String?
+  viewCount      String?
+  likeCount      String?
+  status         String    @default("WAITING")
+  startTime      DateTime?
+  baseTimer      Int
+  prolongTime    Int
+  silencePeriod  Int
+  minWords       Int       @default(0)
+  minChars       Int       @default(0)
+  minSentences   Int       @default(0)
+  antiSpamConfig Int       @default(0)
+  lastCommentAt  DateTime?
+  lastNCount     Int       @default(3)
+  firstNCount    Int       @default(10)
+  prizeMain      String?
+  prizeLastN     String?
+  prizeFirstN    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  comments       Comment[]
+  winners        Winner[]
+}
+
+model Comment {
+  id             String   @id @default(cuid())
+  gameId         String
+  commentId      String   @unique
+  userId         String
+  userName       String
+  userProfilePic String?
+  text           String
+  status         String
+  invalidReason  String?
+  timestamp      DateTime
+  createdAt      DateTime @default(now())
+  game           Game     @relation(fields: [gameId], references: [id])
+}
+
+model Winner {
+  id        String   @id @default(cuid())
+  gameId    String
+  userId    String
+  commentId String?
+  userName  String
+  category  String
+  createdAt DateTime @default(now())
+  game      Game     @relation(fields: [gameId], references: [id])
+}

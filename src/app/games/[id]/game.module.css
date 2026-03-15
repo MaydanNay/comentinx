@@ -1,0 +1,364 @@
+.gameContainer {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 3rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 4rem 2rem;
+  min-height: 100vh;
+  align-items: start;
+}
+
+.mainContent {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+}
+
+.timerCard {
+  padding: 4rem;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid hsla(var(--primary), 0.2);
+}
+
+.timerCard h1 {
+  font-size: 1.5rem;
+  color: hsl(var(--text-muted));
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  margin-bottom: 1.5rem;
+}
+
+.videoHeaderMini {
+    margin-bottom: 2rem;
+    text-align: left;
+}
+
+.videoTitleMain {
+    font-size: 1.5rem !important;
+    font-weight: 800;
+    color: hsl(var(--text-main)) !important;
+    text-transform: none !important;
+    letter-spacing: normal !important;
+    margin-bottom: 0.5rem !important;
+    line-height: 1.2;
+}
+
+.videoStatsRow {
+    display: flex;
+    gap: 1.5rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: hsla(var(--primary), 0.8);
+}
+
+.videoIdBadge {
+    color: hsl(var(--text-muted));
+    font-weight: 500;
+    opacity: 0.6;
+}
+
+.timerDivider {
+    height: 1px;
+    background: hsla(var(--primary), 0.2);
+    margin: 2rem 0;
+    width: 100%;
+}
+
+.timerLabel {
+    font-size: 1rem;
+    color: hsl(var(--text-muted));
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 1rem;
+}
+
+.timeLeft {
+  font-size: clamp(5rem, 15vw, 8rem);
+  font-weight: 800;
+  font-family: var(--font-heading);
+  line-height: 1;
+  letter-spacing: -0.05em;
+  text-shadow: 0 0 50px hsla(var(--primary), 0.3);
+}
+
+.pulse {
+  animation: timerPulse 1s infinite alternate;
+  color: hsl(var(--error));
+}
+
+@keyframes timerPulse {
+  from { transform: scale(1); opacity: 1; }
+  to { transform: scale(1.05); opacity: 0.8; }
+}
+
+.commentsSection {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  min-height: 0;
+  padding: 2rem;
+}
+
+.commentsSection h2 {
+  font-size: 1.75rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.liveIndicator {
+  width: 10px;
+  height: 10px;
+  background: hsl(var(--success));
+  border-radius: 50%;
+  box-shadow: 0 0 10px hsl(var(--success));
+  animation: livePulse 2s infinite;
+}
+
+@keyframes livePulse {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.5); opacity: 0.5; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.commentList {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  overflow-y: auto;
+  padding-right: 1rem;
+  max-height: 600px;
+  scrollbar-width: thin;
+  scrollbar-color: hsla(var(--primary), 0.5) transparent;
+}
+
+.commentList::-webkit-scrollbar {
+  width: 12px;
+}
+
+.commentList::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.commentList::-webkit-scrollbar-thumb {
+  background-color: hsla(var(--primary), 0.5);
+  border-radius: 20px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+.commentList::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(var(--primary));
+}
+
+.comment {
+  display: flex;
+  gap: 1.25rem;
+  padding: 1.25rem;
+  transition: all 0.3s ease;
+  border: 1px solid transparent;
+}
+
+.comment:hover {
+  background: hsla(var(--primary), 0.04);
+  border-color: var(--glass-border);
+}
+
+.reasonWrapper {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px dashed hsla(var(--error), 0.2);
+}
+
+.reasonHint {
+    font-size: 0.75rem;
+    color: hsl(var(--text-muted));
+    font-weight: 600;
+    font-style: italic;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.reasonHint:hover {
+    color: hsl(var(--error));
+}
+
+.avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  border: 1px solid var(--glass-border);
+}
+
+.commentBody {
+  flex: 1;
+}
+
+.commentHead {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.author {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.time {
+  font-size: 0.8rem;
+  color: hsl(var(--text-muted));
+}
+
+.text {
+  line-height: 1.6;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.sidebarCard {
+  padding: 2rem;
+}
+
+.sidebarCard h2 {
+  font-size: 1.25rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.prizesBox {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.prizeItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background: hsla(var(--primary), 0.04);
+  border-radius: 12px;
+}
+
+.prizeItem .cat {
+  font-size: 0.8rem;
+  color: hsl(var(--text-muted));
+  font-weight: 600;
+}
+
+.prizeItem .val {
+  font-weight: 700;
+  color: hsl(var(--primary));
+}
+
+.miniList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.miniItem {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem;
+  border-radius: 8px;
+  background: hsla(var(--primary), 0.03);
+}
+
+.miniAvatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+
+.winnersBox {
+  margin-top: 1rem;
+}
+
+.exportBtn {
+  background: hsla(var(--primary), 0.1);
+  border: 1px solid hsla(var(--primary), 0.3);
+  color: hsl(var(--primary));
+  padding: 0.4rem 0.8rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 600;
+}
+
+.exportBtn:hover {
+  background: hsl(var(--primary));
+  color: white;
+}
+
+.winnerItem {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: hsla(var(--primary), 0.1);
+  border-radius: 16px;
+  border: 1px solid hsla(var(--primary), 0.2);
+  margin-bottom: 0.75rem;
+}
+
+.winnerItem .cat {
+  font-size: 0.65rem;
+  background: hsl(var(--primary));
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 800;
+  width: fit-content;
+  margin-bottom: 0.5rem;
+}
+
+.winnerName {
+  font-weight: 700;
+  text-decoration: none;
+  color: hsl(var(--text-main));
+  display: block;
+}
+
+.winnerName:hover {
+  text-decoration: underline;
+}
+
+.winnerContent {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.winnerCommentLink {
+    display: block;
+    font-size: 0.75rem;
+    color: hsl(var(--primary));
+    margin-top: 0.25rem;
+    opacity: 0.8;
+    text-decoration: none;
+}
+
+.winnerCommentLink:hover {
+    text-decoration: underline;
+    opacity: 1;
+}
+
+@media (max-width: 1100px) {
+  .gameContainer {
+    grid-template-columns: 1fr;
+  }
+}
