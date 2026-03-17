@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     const { 
       videoId: inputVideoId, baseTimer, prolongTime, silencePeriod, 
       minWords, minChars, minSentences, antiSpamConfig,
-      lastNCount, firstNCount, prizeMain, prizeLastN, prizeFirstN
+      lastNCount, firstNCount, prizeMain, prizeLastN, prizeFirstN, keywords
     } = body;
 
     const videoId = extractVideoId(inputVideoId);
@@ -59,6 +59,8 @@ export async function POST(request: Request) {
         prizeMain: prizeMain || null,
         prizeLastN: prizeLastN || null,
         prizeFirstN: prizeFirstN || null,
+        keywords: keywords ? JSON.stringify(keywords) : null,
+        includeOldComments: !!body.includeOldComments,
         status: "WAITING",
       },
     });
@@ -73,7 +75,10 @@ export async function POST(request: Request) {
 export async function GET() {
   try {
     const games = await prisma.game.findMany({
-      orderBy: { createdAt: "desc" },
+      orderBy: [
+        { isPinned: "desc" },
+        { createdAt: "desc" }
+      ],
       include: { winners: true },
     });
     return NextResponse.json(games);

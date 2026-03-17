@@ -47,7 +47,11 @@ export async function POST(
 
     // Calculate actual time left for the frontend
     let timeLeft = null;
-    if (updatedGame.status === "ACTIVE" && updatedGame.startTime && updatedGame.lastCommentAt) {
+    if (updatedGame.status === "FINISHED") {
+        timeLeft = 0;
+    } else if (updatedGame.status === "WAITING") {
+        timeLeft = updatedGame.baseTimer;
+    } else if (updatedGame.status === "ACTIVE" && updatedGame.startTime && updatedGame.lastCommentAt) {
         const now = Date.now();
         const silenceEnd = new Date(updatedGame.lastCommentAt).getTime() + (updatedGame.silencePeriod * 1000);
         const validCount = updatedGame._count.comments;

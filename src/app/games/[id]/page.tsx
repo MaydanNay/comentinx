@@ -15,16 +15,25 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
 
   const exportToExcel = () => {
     if (!game || !game.winners || game.winners.length === 0) return;
-    
+
     // Create an HTML table structure that Excel understands
     const headers = ["Категория", "Имя участника", "YouTube ID", "Ссылка на комментарий"];
-    const rows = game.winners.map((w: any) => [
-      w.category === "MAIN" ? "ГЛАВНЫЙ" : 
-      w.category === "LAST_N" ? `ПОСЛЕДНИЙ ${game.lastNCount}` : `РАНДОМ ПЕРВЫХ ${game.firstNCount}`,
-      w.userName,
-      w.userId,
-      w.commentId ? `https://www.youtube.com/watch?v=${game.videoId}&lc=${w.commentId}` : ""
-    ]);
+    let lastNIndex = 0;
+    const rows = game.winners.map((w: any) => {
+      let cat = "";
+      if (w.category === "MAIN") cat = "ГЛАВНЫЙ";
+      else if (w.category === "LAST_N") {
+        lastNIndex++;
+        cat = `ПОСЛЕДНИЙ ${lastNIndex}`;
+      } else cat = `РАНДОМ ПЕРВЫХ ${game.firstNCount}`;
+
+      return [
+        cat,
+        w.userName,
+        w.userId,
+        w.commentId ? `https://www.youtube.com/watch?v=${game.videoId}&lc=${w.commentId}` : ""
+      ];
+    });
 
     let html = `
       <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
@@ -109,8 +118,11 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
             </div>
           </div>
           <div className={styles.timerDivider}></div>
-          <p className={styles.timerLabel}>{game.status === 'WAITING' ? 'Ожидание первого комментария' : 'До завершения игры'}</p>
-          <div className={`${styles.timeLeft} ${timeLeft !== null && timeLeft < 60 ? styles.pulse : ""}`}>
+          <p className={styles.timerLabel}>
+            {game.status === 'WAITING' ? 'Ожидание первого комментария' :
+              game.status === 'FINISHED' ? 'Игра завершена' : 'До завершения игры'}
+          </p>
+          <div className={`${styles.timeLeft} ${timeLeft !== null && timeLeft < 60 && game.status === 'ACTIVE' ? styles.pulse : ""}`}>
             {timeLeft !== null ? formatTime(timeLeft) : "--:--"}
           </div>
         </section>
@@ -122,8 +134,8 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
           </h2>
           <div className={styles.commentList}>
             {game.comments?.map((c: any) => (
-              <div 
-                key={c.id} 
+              <div
+                key={c.id}
                 className={`${styles.comment} glass-card ${c.status === "INVALID" ? styles.invalid : ""}`}
                 onClick={() => c.status === "INVALID" && toggleReason(c.id)}
                 style={{ cursor: c.status === "INVALID" ? "help" : "default" }}
@@ -139,14 +151,14 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
                   </div>
                   <p className={styles.text}>{c.text}</p>
                   {c.status === "INVALID" && (
-                      <div className={styles.reasonWrapper}>
-                        <div className={styles.reasonHint}>⚠️ Нажмите, чтобы узнать причину</div>
-                        {expandedReasons[c.id] && (
-                            <div className={styles.reason} style={{ marginTop: '0.5rem', color: 'hsl(var(--error))', fontSize: '0.8rem', fontWeight: 600 }}>
-                                ❌ {c.invalidReason}
-                            </div>
-                        )}
-                      </div>
+                    <div className={styles.reasonWrapper}>
+                      <div className={styles.reasonHint}>⚠️ Нажмите, чтобы узнать причину</div>
+                      {expandedReasons[c.id] && (
+                        <div className={styles.reason} style={{ marginTop: '0.5rem', color: 'hsl(var(--error))', fontSize: '0.8rem', fontWeight: 600 }}>
+                          ❌ {c.invalidReason}
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
@@ -160,60 +172,72 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
         <div className={`${styles.sidebarCard} glass-card`}>
           <h2>🏆 Призовой фонд</h2>
           <div className={styles.prizesBox}>
-              <div className={styles.prizeItem}>
-                  <span className={styles.cat}>Главный приз</span>
-                  <span className={styles.val}>{game.prizeMain || "—"}</span>
-              </div>
-              <div className={styles.prizeItem}>
-                  <span className={styles.cat}>Последние {game.lastNCount}</span>
-                  <span className={styles.val}>{game.prizeLastN || "—"}</span>
-              </div>
-              <div className={styles.prizeItem}>
-                  <span className={styles.cat}>Рандом первых {game.firstNCount}</span>
-                  <span className={styles.val}>{game.prizeFirstN || "—"}</span>
-              </div>
+            <div className={styles.prizeItem}>
+              <span className={styles.cat}>Главный приз</span>
+              <span className={styles.val}>{game.prizeMain || "-"}</span>
+            </div>
+            <div className={styles.prizeItem}>
+              <span className={styles.cat}>Последние {game.lastNCount}</span>
+              <span className={styles.val}>{game.prizeLastN || "-"}</span>
+            </div>
+            <div className={styles.prizeItem}>
+              <span className={styles.cat}>Рандом первых {game.firstNCount}</span>
+              <span className={styles.val}>{game.prizeFirstN || "-"}</span>
+            </div>
           </div>
 
           {game.winners && game.winners.length > 0 && (
             <div className={styles.winnersBox}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2rem' }}>
-                    <h2 style={{ margin: 0 }}>🎉 Победители</h2>
-                    <button 
-                        onClick={exportToExcel}
-                        className={styles.exportBtn}
-                    >
-                        Скачать Excel
-                    </button>
-                </div>
-                {game.winners.map((w: any) => (
-                  <div key={w.id} className={styles.winnerItem}>
-                    <div className={styles.winnerContent}>
-                        <span className={styles.cat}>{
-                            w.category === "MAIN" ? "ГЛАВНЫЙ" : 
-                            w.category === "LAST_N" ? `ПОСЛЕДНИЙ ${game.lastNCount}` : `РАНДОМ ПЕРВЫХ ${game.firstNCount}`
-                        }</span>
-                        <a 
-                            href={`https://www.youtube.com/channel/${w.userId}`} 
-                            target="_blank" 
-                            className={styles.winnerName}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2rem' }}>
+                <h2 style={{ margin: 0 }}>🎉 Победители</h2>
+                <button
+                  onClick={exportToExcel}
+                  className={styles.exportBtn}
+                >
+                  Скачать Excel
+                </button>
+              </div>
+              {(() => {
+                let lastNIndex = 0;
+                return game.winners.map((w: any) => {
+                  let categoryLabel = "";
+                  if (w.category === "MAIN") {
+                    categoryLabel = "ГЛАВНЫЙ";
+                  } else if (w.category === "LAST_N") {
+                    lastNIndex++;
+                    categoryLabel = `ПОСЛЕДНИЙ ${lastNIndex}`;
+                  } else {
+                    categoryLabel = `РАНДОМ ПЕРВЫХ ${game.firstNCount}`;
+                  }
+
+                  return (
+                    <div key={w.id} className={styles.winnerItem}>
+                      <div className={styles.winnerContent}>
+                        <span className={styles.cat}>{categoryLabel}</span>
+                        <a
+                          href={`https://www.youtube.com/channel/${w.userId}`}
+                          target="_blank"
+                          className={styles.winnerName}
                         >
-                            @{w.userName}
+                          @{w.userName}
                         </a>
                         {w.commentId && (
-                            <a 
-                                href={`https://www.youtube.com/watch?v=${game.videoId}&lc=${w.commentId}`} 
-                                target="_blank" 
-                                className={styles.winnerCommentLink}
-                            >
-                                Посмотреть комментарий ↗
-                            </a>
+                          <a
+                            href={`https://www.youtube.com/watch?v=${game.videoId}&lc=${w.commentId}`}
+                            target="_blank"
+                            className={styles.winnerCommentLink}
+                          >
+                            Посмотреть комментарий ↗
+                          </a>
                         )}
+                      </div>
                     </div>
-                  </div>
-                ))}
-                <p style={{ fontSize: '0.7rem', color: 'hsl(var(--text-muted))', marginTop: '1rem', fontStyle: 'italic' }}>
-                    * Победители зафиксированы. Вы можете вручную уведомить их, перейдя по ссылке на их комментарии.
-                </p>
+                  );
+                });
+              })()}
+              <p style={{ fontSize: '0.7rem', color: 'hsl(var(--text-muted))', marginTop: '1rem', fontStyle: 'italic' }}>
+                * Победители зафиксированы. Вы можете вручную уведомить их, перейдя по ссылке на их комментарии.
+              </p>
             </div>
           )}
         </div>
@@ -221,7 +245,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
         <div className={`${styles.sidebarCard} glass-card`}>
           <h2>👥 Участники</h2>
           <div className={styles.miniList}>
-            {game.comments?.filter((c:any) => c.status === "VALID").slice(0, 15).map((c: any) => (
+            {game.comments?.filter((c: any) => c.status === "VALID").slice(0, 15).map((c: any) => (
               <div key={c.id} className={styles.miniItem}>
                 <img src={c.userProfilePic} className={styles.miniAvatar} />
                 <span style={{ fontSize: '0.9rem' }}>{c.userName}</span>

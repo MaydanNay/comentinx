@@ -10,16 +10,13 @@ datasource db {
 model Game {
   id             String    @id @default(cuid())
   videoId        String
-  videoTitle     String?
-  viewCount      String?
-  likeCount      String?
   status         String    @default("WAITING")
   startTime      DateTime?
   baseTimer      Int
   prolongTime    Int
   silencePeriod  Int
-  minWords       Int       @default(0)
-  minChars       Int       @default(0)
+  minWords       Int       @default(1)
+  minChars       Int       @default(3)
   minSentences   Int       @default(0)
   antiSpamConfig Int       @default(0)
   lastCommentAt  DateTime?
@@ -30,6 +27,12 @@ model Game {
   prizeFirstN    String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
+  likeCount      String?
+  videoTitle     String?
+  viewCount      String?
+  keywords       String?
+  includeOldComments Boolean @default(false)
+  isPinned           Boolean @default(false)
   comments       Comment[]
   winners        Winner[]
 }
@@ -53,9 +56,9 @@ model Winner {
   id        String   @id @default(cuid())
   gameId    String
   userId    String
-  commentId String?
   userName  String
   category  String
   createdAt DateTime @default(now())
+  commentId String?
   game      Game     @relation(fields: [gameId], references: [id])
 }

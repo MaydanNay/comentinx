@@ -3,6 +3,7 @@ export interface ValidationRules {
   minChars: number;
   minSentences: number;
   antiSpamMinutes: number;
+  keywords?: string[];
 }
 
 export interface CommentData {
@@ -26,45 +27,45 @@ export function validateComment(
 
   // 1. Basic content checks
   if (!text) {
-    return { isValid: false, reason: "Comment is empty" };
+    return { isValid: false, reason: "Комментарий пуст" };
   }
 
   // 2. Character count
   if (text.length < rules.minChars) {
-    return { isValid: false, reason: `Too short (min ${rules.minChars} chars)` };
+    return { isValid: false, reason: `Слишком короткиий (мин. ${rules.minChars} симв.)` };
   }
 
   // 3. Word count
   const words = text.split(/\s+/).filter((w) => w.length > 0);
   if (words.length < rules.minWords) {
-    return { isValid: false, reason: `Too few words (min ${rules.minWords})` };
+    return { isValid: false, reason: `Мало слов (минимум ${rules.minWords})` };
   }
 
   // 4. Sentence count
   const sentences = text.split(/[.!?]+/).filter((s) => s.trim().length > 0);
   if (sentences.length < rules.minSentences) {
-    return { isValid: false, reason: `Too few sentences (min ${rules.minSentences})` };
+    return { isValid: false, reason: `Мало предложений (минимум ${rules.minSentences})` };
   }
 
   // 5. Meaningless content (Point 22)
   if (/^\d+$/.test(text)) {
-    return { isValid: false, reason: "Comment consists only of digits" };
+    return { isValid: false, reason: "Комментарий состоит только из цифр" };
   }
 
   if (words.length === 1 && words[0].length < 3) {
-    return { isValid: false, reason: "Comment is too short (single short word)" };
+    return { isValid: false, reason: "Слишком короткий (одно короткое слово)" };
   }
 
   // Check for repeating characters (e.g. "aaaaaa")
   if (/(.)\1{5,}/.test(text)) {
-    return { isValid: false, reason: "Excessive repeating characters" };
+    return { isValid: false, reason: "Слишком много повторяющихся символов" };
   }
   
   // Basic emoji/symbol check
   const alphaNumericMatch = text.match(/[а-яА-Яa-zA-Z0-9]/g);
   if (!alphaNumericMatch || alphaNumericMatch.length < text.length * 0.3) {
     if (text.length < 15) {
-        return { isValid: false, reason: "Comment contains too many symbols/emojis" };
+        return { isValid: false, reason: "Слишком много спецсимволов или эмодзи" };
     }
   }
 
@@ -73,7 +74,21 @@ export function validateComment(
     const diffMs = currentMs - new Date(comment.lastCommentAt).getTime();
     const diffMins = diffMs / (1000 * 60);
     if (diffMins < rules.antiSpamMinutes) {
-      return { isValid: false, reason: "Slow down! You're commenting too frequently." };
+      return { isValid: false, reason: "Помедленнее! Вы пишете слишком часто." };
+    }
+  }
+
+  // 7. Keywords check
+  if (rules.keywords && rules.keywords.length > 0) {
+    const lowerText = text.toLowerCase();
+    const hasKeyword = rules.keywords.some((kw) => 
+      lowerText.includes(kw.toLowerCase().trim())
+    );
+    if (!hasKeyword) {
+      return { 
+        isValid: false, 
+        reason: `Должен содержать хотя бы одно ключевое слово: ${rules.keywords.join(", ")}` 
+      };
     }
   }
 

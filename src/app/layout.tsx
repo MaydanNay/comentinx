@@ -3,17 +3,17 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   metadataBase: new URL("http://localhost:3001"),
-  title: "Comentix — Last Comment Wins",
+  title: "Comentix",
   description: "Experience the ultimate YouTube comment battle. Last valid comment wins the prize!",
   openGraph: {
-    title: "Comentix — Last Comment Wins",
+    title: "Comentix - Last Comment Wins",
     description: "The most intense live YouTube battle. One comment to rule them all.",
     images: ["/og-image.png"],
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Comentix — YouTube Battle",
+    title: "Comentix - YouTube Battle",
     description: "Battle for the last comment live on YouTube!",
   }
 };

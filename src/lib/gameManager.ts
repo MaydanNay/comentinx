@@ -14,16 +14,26 @@ export async function processNewComments(gameId: string, youtubeComments: YouTub
     minChars: game.minChars,
     minSentences: game.minSentences,
     antiSpamMinutes: game.antiSpamConfig,
+    keywords: game.keywords ? JSON.parse(game.keywords) : [],
   };
 
   // 1. Filter out comments we already have in a single query
+  // AND filter out historical comments (those published before game was created in Comentix)
   const commentIds = youtubeComments.map(c => c.id);
   const existingComments = await prisma.comment.findMany({
     where: { commentId: { in: commentIds } },
     select: { commentId: true }
   });
   const existingIds = new Set(existingComments.map(c => c.commentId));
-  const newComments = youtubeComments.filter(c => !existingIds.has(c.id));
+  const newComments = youtubeComments.filter(c => {
+    const isNewToDb = !existingIds.has(c.id);
+    if (game.includeOldComments) return isNewToDb;
+
+    const publishedTime = new Date(c.publishedAt).getTime();
+    // Use 30s buffer for clock drift between YouTube and Server
+    const gameCreatedTime = game.createdAt.getTime() - (30 * 1000); 
+    return isNewToDb && publishedTime >= gameCreatedTime;
+  });
 
   if (newComments.length === 0) return;
 
@@ -103,21 +113,24 @@ export async function processNewComments(gameId: string, youtubeComments: YouTub
       const currentGame = await tx.game.findUnique({ where: { id: gameId } });
       if (currentGame && currentGame.status !== "FINISHED") {
         if (currentGame.status === "WAITING") {
+          // Transition to ACTIVE using SERVER time, not YouTube publication time
+          // This ensures the silence period and base timer start fairly from activation moment.
+          const now = new Date();
           await tx.game.update({
             where: { id: gameId },
             data: {
               status: "ACTIVE",
-              startTime: latestValidTime,
-              lastCommentAt: latestValidTime,
+              startTime: now,
+              lastCommentAt: now,
             },
           });
         } else if (currentGame.status === "ACTIVE") {
-          if (!currentGame.lastCommentAt || latestValidTime > currentGame.lastCommentAt) {
-            await tx.game.update({
-              where: { id: gameId },
-              data: { lastCommentAt: latestValidTime },
-            });
-          }
+          // Robust Silence Timer: Use current server time instead of YouTube's publishedAt
+          // This protects against polling delays and ensures participants get the full silence period.
+          await tx.game.update({
+            where: { id: gameId },
+            data: { lastCommentAt: new Date() },
+          });
         }
       }
     }
