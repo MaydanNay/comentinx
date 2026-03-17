@@ -45,12 +45,23 @@ export async function POST(
 
     if (!updatedGame) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+    // Calculate unique participants count
+    const uniqueParticipantsResult = await prisma.comment.groupBy({
+        by: ['userId'],
+        where: { gameId: id, status: "VALID" },
+    });
+    const uniqueParticipantsCount = uniqueParticipantsResult.length;
+
     // Calculate actual time left for the frontend
     let timeLeft = null;
+    let endTime = null;
+
     if (updatedGame.status === "FINISHED") {
         timeLeft = 0;
+        endTime = Date.now();
     } else if (updatedGame.status === "WAITING") {
         timeLeft = updatedGame.baseTimer;
+        // In WAITING, we don't have an endTime yet as it starts from the first comment
     } else if (updatedGame.status === "ACTIVE" && updatedGame.startTime && updatedGame.lastCommentAt) {
         const now = Date.now();
         const silenceEnd = new Date(updatedGame.lastCommentAt).getTime() + (updatedGame.silencePeriod * 1000);
@@ -58,10 +69,15 @@ export async function POST(
         const totalAllocatedMs = (updatedGame.baseTimer * 1000) + (Math.max(0, validCount - 1) * updatedGame.prolongTime * 1000);
         const absoluteEnd = new Date(updatedGame.startTime).getTime() + totalAllocatedMs;
         
-        timeLeft = Math.max(0, Math.floor((Math.min(silenceEnd, absoluteEnd) - now) / 1000));
+        endTime = Math.max(silenceEnd, absoluteEnd);
+        timeLeft = Math.max(0, Math.floor((endTime - now) / 1000));
     }
 
-    return NextResponse.json({ ...updatedGame, timeLeft });
+    const bonusTime = updatedGame.status !== "WAITING" 
+        ? Math.max(0, updatedGame._count.comments - 1) * updatedGame.prolongTime 
+        : 0;
+
+    return NextResponse.json({ ...updatedGame, timeLeft, endTime, bonusTime, uniqueParticipantsCount, serverTime: Date.now() });
   } catch (error) {
     console.error("Poll error:", error);
     return NextResponse.json({ error: "Polling failed" }, { status: 500 });

@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     const { 
       videoId: inputVideoId, baseTimer, prolongTime, silencePeriod, 
       minWords, minChars, minSentences, antiSpamConfig,
-      lastNCount, firstNCount, prizeMain, prizeLastN, prizeFirstN, keywords
+      lastNCount, firstNCount, prizeMain, prizeLastN, prizeFirstN, keywords, currency
     } = body;
 
     const videoId = extractVideoId(inputVideoId);
@@ -60,6 +60,7 @@ export async function POST(request: Request) {
         prizeLastN: prizeLastN || null,
         prizeFirstN: prizeFirstN || null,
         keywords: keywords ? JSON.stringify(keywords) : null,
+        currency: body.currency || "$",
         includeOldComments: !!body.includeOldComments,
         status: "WAITING",
       },

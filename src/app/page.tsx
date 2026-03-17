@@ -102,7 +102,7 @@ export default function Home() {
     <main className={styles.main}>
       <header className={styles.header}>
         <h1 className="premium-gradient">Comentix</h1>
-        <p>The ultimate YouTube comment battle platform. Last valid comment wins the prize!</p>
+        <p>Лучшая платформа для баттлов в комментариях на YouTube. Победителем становится автор последнего действительного комментария!</p>
       </header>
 
       {openMenuId && <div className={styles.menuOverlay} onClick={() => setOpenMenuId(null)} />}
@@ -114,10 +114,10 @@ export default function Home() {
             <form onSubmit={handleLogin} className={styles.form}>
               <div className={styles.inputGroup}>
                 <label>Введите пароль администратора</label>
-                <input 
-                  type="password" 
-                  value={password} 
-                  onChange={(e) => setPassword(e.target.value)} 
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   className={styles.input}
                   placeholder="Пароль..."
                 />
@@ -130,7 +130,7 @@ export default function Home() {
           <section className={`${styles.hero} glass-card`}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
               <h2 className="premium-gradient" style={{ margin: 0 }}>Создать новую игру</h2>
-              <button 
+              <button
                 onClick={() => {
                   setIsAuthenticated(false);
                   localStorage.removeItem("comentix_auth");
@@ -145,15 +145,25 @@ export default function Home() {
               e.preventDefault();
               const formData = new FormData(e.currentTarget);
               const data = Object.fromEntries(formData.entries());
-              
+
+              // Helper to get value in seconds
+              const getInSeconds = (fieldName: string) => {
+                const val = parseInt(data[fieldName] as string) || 0;
+                const unit = data[`${fieldName}Unit`] as string;
+                return unit === "min" ? val * 60 : val;
+              };
+
               const res = await fetch("/api/games", {
                 method: "POST",
-                headers: { 
+                headers: {
                   "Content-Type": "application/json",
                   "Authorization": localStorage.getItem("comentix_auth_token") || ""
                 },
-                body: JSON.stringify({ 
-                  ...data, 
+                body: JSON.stringify({
+                  ...data,
+                  baseTimer: getInSeconds("baseTimer"),
+                  silencePeriod: 60, // Hardcoded "Survival Mode" buffer
+                  prolongTime: getInSeconds("prolongTime"),
                   keywords: keywords.filter(k => k.trim() !== ""),
                   includeOldComments: formData.get("includeOldComments") === "on"
                 }),
@@ -179,7 +189,7 @@ export default function Home() {
                 <div className={styles.videoPreviewContainer}>
                   <div className={styles.videoPreview}>
                     <img src={`https://img.youtube.com/vi/${currentVideoId}/maxresdefault.jpg`} alt="Preview" onError={(e) => {
-                        (e.target as HTMLImageElement).src = `https://img.youtube.com/vi/${currentVideoId}/0.jpg`;
+                      (e.target as HTMLImageElement).src = `https://img.youtube.com/vi/${currentVideoId}/0.jpg`;
                     }} />
                   </div>
                   {videoMetadata && (
@@ -193,16 +203,16 @@ export default function Home() {
                   )}
                 </div>
               )}
-              
-              <input 
-                  name="videoId" 
-                  placeholder="Вставьте ссылку на YouTube видео или Shorts" 
-                  required 
-                  className={styles.input} 
-                  onChange={(e) => setVideoId(e.target.value)}
-                  value={videoId}
+
+              <input
+                name="videoId"
+                placeholder="Вставьте ссылку на YouTube видео или Shorts"
+                required
+                className={styles.input}
+                onChange={(e) => setVideoId(e.target.value)}
+                value={videoId}
               />
-              
+
               <div className={styles.grid}>
                 <div className={styles.collapsibleSection}>
                   <button type="button" className={styles.sectionHeader} onClick={() => toggle('time')}>
@@ -213,24 +223,29 @@ export default function Home() {
                     <div className={styles.sectionContent}>
                       <div className={styles.inputGroup}>
                         <label>
-                          Базовый таймер (сек)
-                          <Tooltip text="Время, которое дается после каждого валидного комментария." />
+                          Время игры
+                          <Tooltip text="Минимальная гарантированная длительность игры. После окончания этого времени (включая все бонусы) наступит 1 минута 'тишины' для определения победителя." />
                         </label>
-                        <input name="baseTimer" type="number" defaultValue="300" className={styles.input} />
+                        <div className={styles.inputUnitGroup}>
+                          <input name="baseTimer" type="number" defaultValue="5" className={styles.inputWithUnit} />
+                          <select name="baseTimerUnit" defaultValue="min" className={styles.unitSelect}>
+                            <option value="min">МИН</option>
+                            <option value="sec">СЕК</option>
+                          </select>
+                        </div>
                       </div>
                       <div className={styles.inputGroup}>
                         <label>
-                          Период тишины (сек)
-                          <Tooltip text="Если за это время никто не напишет, игра закончится." />
+                          Продление
+                          <Tooltip text="Сколько времени добавляется к таймеру при новом комментарии." />
                         </label>
-                        <input name="silencePeriod" type="number" defaultValue="300" className={styles.input} />
-                      </div>
-                      <div className={styles.inputGroup}>
-                        <label>
-                          Продление (сек)
-                          <Tooltip text="Сколько секунд добавляется к таймеру при новом комментарии." />
-                        </label>
-                        <input name="prolongTime" type="number" defaultValue="60" className={styles.input} />
+                        <div className={styles.inputUnitGroup}>
+                          <input name="prolongTime" type="number" defaultValue="60" className={styles.inputWithUnit} />
+                          <select name="prolongTimeUnit" defaultValue="sec" className={styles.unitSelect}>
+                            <option value="min">МИН</option>
+                            <option value="sec">СЕК</option>
+                          </select>
+                        </div>
                       </div>
                       <div className={styles.inputGroup}>
                         <label>
@@ -242,7 +257,7 @@ export default function Home() {
                     </div>
                   )}
                 </div>
-  
+
                 <div className={styles.collapsibleSection}>
                   <button type="button" className={styles.sectionHeader} onClick={() => toggle('validation')}>
                     <h4 className={styles.sectionTitle}>Правила валидации</h4>
@@ -272,35 +287,36 @@ export default function Home() {
                         <input name="minSentences" type="number" defaultValue="1" className={styles.input} />
                       </div>
 
-                      <div className={styles.inputGroup} style={{ gridColumn: '1 / -1', flexDirection: 'row', alignItems: 'center', gap: '0.75rem', marginTop: '0.5rem' }}>
-                        <div className={styles.checkboxWrapper}>
-                          <input name="includeOldComments" type="checkbox" id="includeOldComments" />
-                          <label htmlFor="includeOldComments">
-                            Учитывать старые комментарии
-                            <Tooltip text="Если включено, система засчитает комментарии, оставленные до создания игры." />
-                          </label>
+                      <div className={styles.inputGroup} style={{ gridColumn: '1 / -1', marginTop: '1rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1.5rem', marginBottom: '1rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                            <label style={{ margin: 0, display: 'flex', alignItems: 'center' }}>
+                              Ключевые слова
+                              <Tooltip text="Список слов, хотя бы одно из которых должно быть в тексте." />
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => setKeywords([...keywords, ""])}
+                              style={{ padding: '0.2rem 0.6rem', fontSize: '0.7rem' }}
+                              className="btn-primary"
+                            >
+                              + Добавить
+                            </button>
+                          </div>
+
+                          <div className={styles.checkboxWrapper} style={{ padding: '0.5rem 1rem' }}>
+                            <input name="includeOldComments" type="checkbox" id="includeOldComments" />
+                            <label htmlFor="includeOldComments" style={{ textTransform: 'none', fontSize: '0.9rem', color: 'hsl(var(--text-main))', marginBottom: 0 }}>
+                              Учитывать старые комментарии
+                              <Tooltip text="Если включено, система засчитает комментарии, оставленные до создания игры." />
+                            </label>
+                          </div>
                         </div>
-                      </div>
-                      
-                      <div className={styles.inputGroup} style={{ gridColumn: '1 / -1' }}>
-                        <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ display: 'flex', alignItems: 'center' }}>
-                            Ключевые слова
-                            <Tooltip text="Список слов, хотя бы одно из которых должно быть в тексте." />
-                          </span>
-                          <button 
-                            type="button" 
-                            onClick={() => setKeywords([...keywords, ""])}
-                            style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem' }}
-                            className="btn-primary"
-                          >
-                            + Добавить слово
-                          </button>
-                        </label>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
+
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
                           {keywords.map((kw, idx) => (
                             <div key={idx} style={{ display: 'flex', gap: '0.25rem' }}>
-                              <input 
+                              <input
                                 value={kw}
                                 onChange={(e) => {
                                   const newKws = [...keywords];
@@ -309,11 +325,11 @@ export default function Home() {
                                 }}
                                 className={styles.input}
                                 placeholder="Слово..."
-                                style={{ width: '220px' }}
+                                style={{ width: '180px', padding: '0.75rem 1rem' }}
                               />
                               {keywords.length > 1 && (
-                                <button 
-                                  type="button" 
+                                <button
+                                  type="button"
                                   onClick={() => setKeywords(keywords.filter((_, i) => i !== idx))}
                                   style={{ padding: '0 0.5rem', background: 'rgba(255,0,0,0.1)', color: 'red', border: '1px solid rgba(255,0,0,0.2)', borderRadius: '4px' }}
                                 >
@@ -324,13 +340,13 @@ export default function Home() {
                           ))}
                         </div>
                         <p style={{ fontSize: '0.7rem', opacity: 0.6, marginTop: '0.5rem' }}>
-                          Если пусто — проверяться не будут. Иначе комментарий должен содержать хотя бы одно слово из списка.
+                          Если пусто - проверяться не будут. Иначе комментарий должен содержать хотя бы одно слово из списка.
                         </p>
                       </div>
                     </div>
                   )}
                 </div>
-  
+
                 <div className={styles.collapsibleSection}>
                   <button type="button" className={styles.sectionHeader} onClick={() => toggle('prizes')}>
                     <h4 className={styles.sectionTitle}>Призы</h4>
@@ -340,44 +356,61 @@ export default function Home() {
                     <div className={styles.sectionContent}>
                       <div className={styles.inputGroup}>
                         <label>
-                          Победителей "Последних N"
+                          Валюта
+                          <Tooltip text="Выберите валюту, которая будет отображаться рядом с суммами." />
+                        </label>
+                        <select name="currency" className={styles.select}>
+                          <option value="₸">₸ (Тенге)</option>
+                          <option value="$">$ (Доллар)</option>
+                          <option value="₽">₽ (Рубль)</option>
+                          <option value="€">€ (Евро)</option>
+                          <option value="₴">₴ (Гривна)</option>
+                          <option value="£">£ (Фунт)</option>
+                        </select>
+                      </div>
+
+                      <div className={styles.inputGroup}>
+                        <label>
+                          Главный приз
+                          <Tooltip text="Описание главного приза для победителя." />
+                        </label>
+                        <input name="prizeMain" placeholder="Например: 5000" className={styles.input} />
+                      </div>
+
+                      <div className={styles.inputGroup}>
+                        <label>
+                          Победителей "Последних X"
                           <Tooltip text="Количество последних комментаторов для утешительного приза." />
                         </label>
                         <input name="lastNCount" type="number" defaultValue="3" className={styles.input} />
                       </div>
                       <div className={styles.inputGroup}>
                         <label>
-                          Пул рандома "Первых N"
+                          Приз "Последние X"
+                          <Tooltip text="Приз для тех, кто был близок к победе." />
+                        </label>
+                        <input name="prizeLastN" placeholder="Например: 1000" className={styles.input} />
+                      </div>
+
+                      <div className={styles.inputGroup}>
+                        <label>
+                          Пул рандома "Первых X"
                           <Tooltip text="Количество первых участников для розыгрыша случайного приза." />
                         </label>
                         <input name="firstNCount" type="number" defaultValue="10" className={styles.input} />
                       </div>
                       <div className={styles.inputGroup}>
                         <label>
-                          Главный приз
-                          <Tooltip text="Описание главного приза для победителя." />
-                        </label>
-                        <input name="prizeMain" placeholder="Напр: $100" className={styles.input} />
-                      </div>
-                      <div className={styles.inputGroup}>
-                        <label>
-                          Приз "Последние N"
-                          <Tooltip text="Приз для тех, кто был близок к победе." />
-                        </label>
-                        <input name="prizeLastN" placeholder="Напр: $10" className={styles.input} />
-                      </div>
-                      <div className={styles.inputGroup}>
-                        <label>
-                          Приз "Первые N"
+                          Приз рандома "Первые X"
                           <Tooltip text="Приз для случайного человека из первой десятки участников." />
                         </label>
-                        <input name="prizeFirstN" placeholder="Напр: $5" className={styles.input} />
+                        <input name="prizeFirstN" placeholder="Например: 500" className={styles.input} />
                       </div>
                     </div>
                   )}
                 </div>
               </div>
-  
+
               <button type="submit" className="btn-primary">Запустить Ожидание</button>
             </form>
           </section>
@@ -403,15 +436,15 @@ export default function Home() {
                     </div>
                   </div>
                   <div className={styles.gameStatsMini}>
-                      {game.viewCount && <span>👁️ {Number(game.viewCount).toLocaleString()}</span>}
-                      {game.likeCount && <span>❤️ {Number(game.likeCount).toLocaleString()}</span>}
+                    {game.viewCount && <span>👁️ {Number(game.viewCount).toLocaleString()}</span>}
+                    {game.likeCount && <span>❤️ {Number(game.likeCount).toLocaleString()}</span>}
                   </div>
                   <div className={styles.gameMeta}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                       <span>{new Date(game.createdAt).toLocaleDateString()}</span>
-                      {game.winners && game.winners.find((w:any) => w.category === 'MAIN') && (
+                      {game.winners && game.winners.find((w: any) => w.category === 'MAIN') && (
                         <span style={{ fontSize: '0.75rem', color: 'hsl(var(--primary))', fontWeight: 600 }}>
-                          🏆 {game.winners.find((w:any) => w.category === 'MAIN').userName}
+                          🏆 {game.winners.find((w: any) => w.category === 'MAIN').userName}
                         </span>
                       )}
                     </div>
@@ -420,8 +453,8 @@ export default function Home() {
                 </a>
 
                 <div className={styles.menuContainer}>
-                  <button 
-                    className={styles.menuBtn} 
+                  <button
+                    className={styles.menuBtn}
                     onClick={() => setOpenMenuId(openMenuId === game.id ? null : game.id)}
                   >
                     ⋮
@@ -440,7 +473,7 @@ export default function Home() {
                       }}>
                         {game.isPinned ? 'Открепить' : 'Закрепить'}
                       </button>
-                      <button 
+                      <button
                         className={styles.deleteBtn}
                         onClick={async () => {
                           if (confirm('Удалить эту игру и всю её историю?')) {

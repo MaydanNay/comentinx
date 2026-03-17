@@ -21,7 +21,10 @@ export async function processNewComments(gameId: string, youtubeComments: YouTub
   // AND filter out historical comments (those published before game was created in Comentix)
   const commentIds = youtubeComments.map(c => c.id);
   const existingComments = await prisma.comment.findMany({
-    where: { commentId: { in: commentIds } },
+    where: { 
+      gameId,
+      commentId: { in: commentIds } 
+    },
     select: { commentId: true }
   });
   const existingIds = new Set(existingComments.map(c => c.commentId));
@@ -113,8 +116,7 @@ export async function processNewComments(gameId: string, youtubeComments: YouTub
       const currentGame = await tx.game.findUnique({ where: { id: gameId } });
       if (currentGame && currentGame.status !== "FINISHED") {
         if (currentGame.status === "WAITING") {
-          // Transition to ACTIVE using SERVER time, not YouTube publication time
-          // This ensures the silence period and base timer start fairly from activation moment.
+          // Transition to ACTIVE using SERVER time
           const now = new Date();
           await tx.game.update({
             where: { id: gameId },
@@ -158,7 +160,9 @@ export async function checkGameEnd(gameId: string) {
   const absoluteEndTime = new Date(game.startTime.getTime() + totalAllocatedMs);
   const isTimeUp = now >= absoluteEndTime;
 
-  if (isSilent || isTimeUp) {
+  // The game ends ONLY when BOTH the absolute timer is up AND the silence period has passed.
+  // This ensures the Base Timer duration is guaranteed.
+  if (isSilent && isTimeUp) {
     await finalizeGame(gameId);
   }
 }
@@ -192,34 +196,58 @@ async function finalizeGame(gameId: string) {
       const validComments = updatedGame.comments;
       if (validComments.length === 0) return;
 
-      // 2. Select winners (Idempotent within this transaction)
-      const lastComment = validComments[validComments.length - 1];
+      const winnersSet = new Set<string>();
+
+      // 1. MAIN winner (Very last valid comment)
+      const mainWinnerComment = validComments[validComments.length - 1];
       await tx.winner.create({
         data: {
           gameId,
-          userId: lastComment.userId,
-          commentId: lastComment.commentId,
-          userName: lastComment.userName,
+          userId: mainWinnerComment.userId,
+          commentId: mainWinnerComment.commentId,
+          userName: mainWinnerComment.userName,
           category: "MAIN",
         }
       });
+      winnersSet.add(mainWinnerComment.userId);
 
-      const lastN = validComments.slice(-(updatedGame.lastNCount + 1), -1).reverse(); 
-      for (const c of lastN) {
-        await tx.winner.create({
-          data: {
-            gameId,
-            userId: c.userId,
-            commentId: c.commentId,
-            userName: c.userName,
-            category: "LAST_N",
-          }
-        });
+      // 2. LAST_N winners (Unique users who commented before the main winner)
+      // Moving backwards from the end, skipping the main winner and already seen users
+      let foundLastN = 0;
+      for (let i = validComments.length - 2; i >= 0 && foundLastN < updatedGame.lastNCount; i--) {
+        const c = validComments[i];
+        if (!winnersSet.has(c.userId)) {
+          await tx.winner.create({
+            data: {
+              gameId,
+              userId: c.userId,
+              commentId: c.commentId,
+              userName: c.userName,
+              category: "LAST_N",
+            }
+          });
+          winnersSet.add(c.userId);
+          foundLastN++;
+        }
       }
 
-      const firstN = validComments.slice(0, updatedGame.firstNCount);
-      if (firstN.length > 0) {
-        const randomWinner = firstN[Math.floor(Math.random() * firstN.length)];
+      // 3. FIRST_N_RANDOM winner (Unique users among the first N participants, excluding current winners)
+      // Get unique users from the first firstNCount comments
+      const firstNUniqueUsers: any[] = [];
+      const seenInFirstN = new Set<string>();
+      
+      for (const c of validComments.slice(0, updatedGame.firstNCount)) {
+        if (!seenInFirstN.has(c.userId)) {
+          firstNUniqueUsers.push(c);
+          seenInFirstN.add(c.userId);
+        }
+      }
+
+      // Filter out those who already won something
+      const eligibleForRandom = firstNUniqueUsers.filter(c => !winnersSet.has(c.userId));
+      
+      if (eligibleForRandom.length > 0) {
+        const randomWinner = eligibleForRandom[Math.floor(Math.random() * eligibleForRandom.length)];
         await tx.winner.create({
           data: {
             gameId,

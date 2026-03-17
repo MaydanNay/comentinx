@@ -41,11 +41,62 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { isPinned } = body;
+    const { 
+      isPinned, 
+      addSeconds,
+      baseTimer,
+      prolongTime,
+      silencePeriod,
+      minWords,
+      minChars,
+      minSentences,
+      antiSpamConfig,
+      lastNCount,
+      firstNCount,
+      prizeMain,
+      prizeLastN,
+      prizeFirstN,
+      keywords,
+      includeOldComments,
+      currency
+    } = body;
+
+    const data: any = {};
+    if (isPinned !== undefined) data.isPinned = isPinned;
+    if (baseTimer !== undefined) data.baseTimer = Number(baseTimer);
+    if (prolongTime !== undefined) data.prolongTime = Number(prolongTime);
+    if (silencePeriod !== undefined) data.silencePeriod = Number(silencePeriod);
+    if (minWords !== undefined) data.minWords = Number(minWords);
+    if (minChars !== undefined) data.minChars = Number(minChars);
+    if (minSentences !== undefined) data.minSentences = Number(minSentences);
+    if (antiSpamConfig !== undefined) data.antiSpamConfig = Number(antiSpamConfig);
+    if (lastNCount !== undefined) data.lastNCount = Number(lastNCount);
+    if (firstNCount !== undefined) data.firstNCount = Number(firstNCount);
+    if (prizeMain !== undefined) data.prizeMain = prizeMain;
+    if (prizeLastN !== undefined) data.prizeLastN = prizeLastN;
+    if (prizeFirstN !== undefined) data.prizeFirstN = prizeFirstN;
+    if (currency !== undefined) data.currency = currency;
+    if (includeOldComments !== undefined) data.includeOldComments = includeOldComments;
+    
+    if (keywords !== undefined) {
+      data.keywords = typeof keywords === "string" ? keywords : JSON.stringify(keywords);
+    }
+
+    if (addSeconds !== undefined && typeof addSeconds === "number" && addSeconds > 0) {
+      const currentGame = await prisma.game.findUnique({ where: { id } });
+      if (currentGame && currentGame.status === "ACTIVE") {
+        if (currentGame.startTime) {
+          data.startTime = new Date(currentGame.startTime.getTime() + addSeconds * 1000);
+        }
+        if (currentGame.lastCommentAt) {
+          data.lastCommentAt = new Date(currentGame.lastCommentAt.getTime() + addSeconds * 1000);
+        }
+      }
+    }
 
     const game = await prisma.game.update({
       where: { id },
-      data: { isPinned },
+      data,
     });
 
     return NextResponse.json(game);

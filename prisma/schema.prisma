@@ -25,6 +25,7 @@ model Game {
   prizeMain      String?
   prizeLastN     String?
   prizeFirstN    String?
+  currency       String    @default("$")
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   likeCount      String?
@@ -40,7 +41,7 @@ model Game {
 model Comment {
   id             String   @id @default(cuid())
   gameId         String
-  commentId      String   @unique
+  commentId      String
   userId         String
   userName       String
   userProfilePic String?
@@ -50,6 +51,8 @@ model Comment {
   timestamp      DateTime
   createdAt      DateTime @default(now())
   game           Game     @relation(fields: [gameId], references: [id])
+
+  @@unique([gameId, commentId])
 }
 
 model Winner {
