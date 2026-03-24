@@ -15,7 +15,8 @@ export async function POST(request: Request) {
     const { 
       videoId: inputVideoId, baseTimer, prolongTime, silencePeriod, 
       minWords, minChars, minSentences, antiSpamConfig,
-      lastNCount, firstNCount, prizeMain, prizeLastN, prizeFirstN, keywords, currency
+      lastNCount, firstNCount, prizeMain, prizeLastN, prizeFirstN, 
+      prizeRandomAll, randomAllCount, keywords, currency, additionalRules
     } = body;
 
     const videoId = extractVideoId(inputVideoId);
@@ -59,9 +60,12 @@ export async function POST(request: Request) {
         prizeMain: prizeMain || null,
         prizeLastN: prizeLastN || null,
         prizeFirstN: prizeFirstN || null,
+        prizeRandomAll: prizeRandomAll || null,
+        randomAllCount: Math.max(1, parseInt(randomAllCount) || 1),
         keywords: keywords ? JSON.stringify(keywords) : null,
-        currency: body.currency || "$",
+        currency: body.currency || "₸",
         includeOldComments: !!body.includeOldComments,
+        additionalRules: additionalRules || null,
         status: "WAITING",
       },
     });
@@ -73,8 +77,15 @@ export async function POST(request: Request) {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const authHeader = request.headers.get("Authorization");
+    const adminPassword = process.env.ADMIN_PASSWORD || "admin123";
+
+    if (authHeader !== adminPassword) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const games = await prisma.game.findMany({
       orderBy: [
         { isPinned: "desc" },

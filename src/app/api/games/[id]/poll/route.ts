@@ -14,25 +14,37 @@ export async function POST(
     const game = await prisma.game.findUnique({ where: { id } });
     if (!game) return NextResponse.json({ error: "Game not found" }, { status: 404 });
 
-    // Use Cache for YouTube results to save quota (Point 1 in Max Optimization)
-    const cacheKey = `yt-comments-${game.videoId}`;
-    let comments = getFromCache<any[]>(cacheKey);
+    // Optimization: Only one client triggers the heavy sync logic every 10s
+    // Also, don't sync if the game is already finished
+    const lastSyncKey = `last-sync-${id}`;
+    const needsSync = !getFromCache<boolean>(lastSyncKey) && game.status !== "FINISHED";
 
-    if (!comments) {
-        if (process.env.YOUTUBE_API_KEY) {
-            comments = await fetchLatestComments(game.videoId, process.env.YOUTUBE_API_KEY);
-        } else {
-            comments = getMockComments(3);
+    if (needsSync) {
+        // Set lock immediately for 10 seconds
+        setToCache(lastSyncKey, true, 10);
+
+        try {
+            const cacheKey = `yt-comments-${game.videoId}`;
+            let comments = getFromCache<any[]>(cacheKey);
+
+            if (!comments) {
+                if (process.env.YOUTUBE_API_KEY) {
+                    comments = await fetchLatestComments(game.videoId, process.env.YOUTUBE_API_KEY);
+                } else {
+                    comments = getMockComments(3);
+                }
+                setToCache(cacheKey, comments, 3); // 3-second internal cache
+            }
+
+            if (comments && comments.length > 0) {
+                await processNewComments(id, comments);
+            }
+            await checkGameEnd(id);
+        } catch (syncError) {
+            console.error("Background sync failed but continuing for spectator:", syncError);
+            // We ignore the error so the spectator still gets the last known state from DB
         }
-        setToCache(cacheKey, comments, 3); // 3-second cache
     }
-
-    console.time(`poll-${id}`);
-    if (comments && comments.length > 0) {
-        await processNewComments(id, comments);
-    }
-    await checkGameEnd(id);
-    console.timeEnd(`poll-${id}`);
 
     const updatedGame = await prisma.game.findUnique({
       where: { id },
@@ -45,12 +57,8 @@ export async function POST(
 
     if (!updatedGame) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    // Calculate unique participants count
-    const uniqueParticipantsResult = await prisma.comment.groupBy({
-        by: ['userId'],
-        where: { gameId: id, status: "VALID" },
-    });
-    const uniqueParticipantsCount = uniqueParticipantsResult.length;
+    // Use the pre-calculated unique participants count from the DB (Optimization for 1000+ users)
+    const uniqueParticipantsCount = (updatedGame as any).uniqueParticipantsCount;
 
     // Calculate actual time left for the frontend
     let timeLeft = null;

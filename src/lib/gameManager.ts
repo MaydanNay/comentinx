@@ -112,30 +112,33 @@ export async function processNewComments(gameId: string, youtubeComments: YouTub
     }
 
     // 4. Update Game State Once
-    if (hasNewValid && latestValidTime) {
-      const currentGame = await tx.game.findUnique({ where: { id: gameId } });
-      if (currentGame && currentGame.status !== "FINISHED") {
-        if (currentGame.status === "WAITING") {
-          // Transition to ACTIVE using SERVER time
-          const now = new Date();
-          await tx.game.update({
-            where: { id: gameId },
-            data: {
-              status: "ACTIVE",
-              startTime: now,
-              lastCommentAt: now,
-            },
+      if (hasNewValid && latestValidTime) {
+        const currentGame = await tx.game.findUnique({ where: { id: gameId } });
+        if (currentGame && currentGame.status !== "FINISHED") {
+          // Efficient unique participant count update
+          const uniqueParticipantsResult = await tx.comment.groupBy({
+            by: ['userId'],
+            where: { gameId, status: "VALID" },
           });
-        } else if (currentGame.status === "ACTIVE") {
-          // Robust Silence Timer: Use current server time instead of YouTube's publishedAt
-          // This protects against polling delays and ensures participants get the full silence period.
+          const actualUniqueCount = uniqueParticipantsResult.length;
+
+          const updateData: any = { uniqueParticipantsCount: actualUniqueCount };
+          
+          if (currentGame.status === "WAITING") {
+            const now = new Date();
+            updateData.status = "ACTIVE";
+            updateData.startTime = now;
+            updateData.lastCommentAt = now;
+          } else if (currentGame.status === "ACTIVE") {
+            updateData.lastCommentAt = new Date();
+          }
+
           await tx.game.update({
             where: { id: gameId },
-            data: { lastCommentAt: new Date() },
+            data: updateData
           });
         }
       }
-    }
   });
 }
 
@@ -257,6 +260,42 @@ async function finalizeGame(gameId: string) {
             category: "FIRST_N_RANDOM",
           }
         });
+        winnersSet.add(randomWinner.userId); // Add to set to exclude from next category
+      }
+
+      // 4. RANDOM_ALL winners (Unique users among all participants, excluding current winners)
+      if ((updatedGame as any).prizeRandomAll) {
+        const allUniqueParticipants: any[] = [];
+        const seenInAll = new Set<string>();
+        
+        for (const c of validComments) {
+          if (!seenInAll.has(c.userId)) {
+            allUniqueParticipants.push(c);
+            seenInAll.add(c.userId);
+          }
+        }
+
+        let eligibleForAll = allUniqueParticipants.filter(c => !winnersSet.has(c.userId));
+        
+        // Pick individual random winners one by one to ensure they are unique
+        for (let j = 0; j < (updatedGame as any).randomAllCount && eligibleForAll.length > 0; j++) {
+            const randomIndex = Math.floor(Math.random() * eligibleForAll.length);
+            const randomWinner = eligibleForAll[randomIndex];
+            
+            await tx.winner.create({
+              data: {
+                gameId,
+                userId: randomWinner.userId,
+                commentId: randomWinner.commentId,
+                userName: randomWinner.userName,
+                category: "RANDOM_ALL",
+              }
+            });
+            
+            winnersSet.add(randomWinner.userId);
+            // Remove the winner from eligible list for the next iteration of random all
+            eligibleForAll.splice(randomIndex, 1);
+        }
       }
     });
   } catch (error) {

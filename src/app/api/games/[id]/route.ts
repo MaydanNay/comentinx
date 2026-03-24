@@ -56,9 +56,12 @@ export async function PATCH(
       prizeMain,
       prizeLastN,
       prizeFirstN,
+      prizeRandomAll,
+      randomAllCount,
       keywords,
       includeOldComments,
-      currency
+      currency,
+      additionalRules
     } = body;
 
     const data: any = {};
@@ -75,8 +78,11 @@ export async function PATCH(
     if (prizeMain !== undefined) data.prizeMain = prizeMain;
     if (prizeLastN !== undefined) data.prizeLastN = prizeLastN;
     if (prizeFirstN !== undefined) data.prizeFirstN = prizeFirstN;
+    if (prizeRandomAll !== undefined) data.prizeRandomAll = prizeRandomAll;
+    if (randomAllCount !== undefined) data.randomAllCount = Number(randomAllCount);
     if (currency !== undefined) data.currency = currency;
     if (includeOldComments !== undefined) data.includeOldComments = includeOldComments;
+    if (additionalRules !== undefined) data.additionalRules = additionalRules;
     
     if (keywords !== undefined) {
       data.keywords = typeof keywords === "string" ? keywords : JSON.stringify(keywords);

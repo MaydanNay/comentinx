@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -25,6 +25,8 @@ model Game {
   prizeMain      String?
   prizeLastN     String?
   prizeFirstN    String?
+  prizeRandomAll  String?
+  randomAllCount  Int       @default(1)
   currency       String    @default("$")
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
@@ -34,6 +36,8 @@ model Game {
   keywords       String?
   includeOldComments Boolean @default(false)
   isPinned           Boolean @default(false)
+  additionalRules    String?
+  uniqueParticipantsCount Int @default(0)
   comments       Comment[]
   winners        Winner[]
 }
@@ -53,6 +57,8 @@ model Comment {
   game           Game     @relation(fields: [gameId], references: [id])
 
   @@unique([gameId, commentId])
+  @@index([gameId, status])
+  @@index([gameId, timestamp(sort: Desc)])
 }
 
 model Winner {
@@ -64,4 +70,6 @@ model Winner {
   createdAt DateTime @default(now())
   commentId String?
   game      Game     @relation(fields: [gameId], references: [id])
+
+  @@index([gameId])
 }

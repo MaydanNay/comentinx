@@ -79,7 +79,12 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    fetch("/api/games")
+    if (!isAuthenticated) return;
+    
+    const token = localStorage.getItem("comentix_auth_token");
+    fetch("/api/games", {
+      headers: { "Authorization": token || "" }
+    })
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
@@ -93,7 +98,7 @@ export default function Home() {
         console.error("Fetch games fail:", err);
         setGames([]);
       });
-  }, []);
+  }, [isAuthenticated]);
 
   const currentVideoId = videoId ? extractVideoId(videoId) : "";
   const hasValidVideoId = currentVideoId && currentVideoId.length === 11;
@@ -165,6 +170,7 @@ export default function Home() {
                   silencePeriod: 60, // Hardcoded "Survival Mode" buffer
                   prolongTime: getInSeconds("prolongTime"),
                   keywords: keywords.filter(k => k.trim() !== ""),
+                  additionalRules: formData.get("additionalRules") as string,
                   includeOldComments: formData.get("includeOldComments") === "on"
                 }),
               });
@@ -343,6 +349,19 @@ export default function Home() {
                           Если пусто - проверяться не будут. Иначе комментарий должен содержать хотя бы одно слово из списка.
                         </p>
                       </div>
+
+                      <div className={styles.inputGroup} style={{ gridColumn: '1 / -1', marginTop: '1rem' }}>
+                        <label>
+                          Дополнительные правила (текстом)
+                          <Tooltip text="Любые дополнительные правила, которые будут отображаться игрокам." />
+                        </label>
+                        <textarea 
+                          name="additionalRules" 
+                          className={styles.textarea} 
+                          placeholder="Например: Не использовать мат, не спамить ссылками..." 
+                          rows={3}
+                        />
+                      </div>
                     </div>
                   )}
                 </div>
@@ -406,6 +425,21 @@ export default function Home() {
                         </label>
                         <input name="prizeFirstN" placeholder="Например: 500" className={styles.input} />
                       </div>
+
+                      <div className={styles.inputGroup}>
+                        <label>
+                          Приз "Рандом всех"
+                          <Tooltip text="Приз для случайного человека из всех участников." />
+                        </label>
+                        <input name="prizeRandomAll" placeholder="Например: 100" className={styles.input} />
+                      </div>
+                      <div className={styles.inputGroup}>
+                        <label>
+                          Кол-во "Рандом всех"
+                          <Tooltip text="Сколько случайных людей получат этот приз." />
+                        </label>
+                        <input name="randomAllCount" type="number" defaultValue="1" className={styles.input} />
+                      </div>
                     </div>
                   )}
                 </div>
@@ -413,89 +447,89 @@ export default function Home() {
 
               <button type="submit" className="btn-primary">Запустить Ожидание</button>
             </form>
-          </section>
-        )}
 
-        <section className={styles.recent}>
-          <h2>Недавние игры</h2>
-          <div className={styles.gameList}>
-            {games.map((game) => (
-              <div key={game.id} className={styles.cardWrapper}>
-                <a href={`/games/${game.id}`} className={`${styles.gameCard} glass-card ${game.isPinned ? styles.pinnedCard : ""}`} style={{ position: 'relative' }}>
-                  {game.isPinned && <div className={styles.pinIndicator}>📌</div>}
-                  <div className={styles.gameInfo}>
-                    <div className={styles.titleWrapper}>
-                      <h3 className={styles.videoTitle}>{game.videoTitle || "Untitled Video"}</h3>
-                      <span className={styles.videoIdSmall}>ID: {game.videoId}</span>
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexShrink: 0 }}>
-                      <span className={`${styles.status} ${styles[game.status.toLowerCase()]}`}>
-                        {statusMap[game.status] || game.status}
-                      </span>
-                      {game.prizeMain && <span className={styles.prizeBadge} title={`Приз: ${game.prizeMain}`}>🎁</span>}
-                    </div>
-                  </div>
-                  <div className={styles.gameStatsMini}>
-                    {game.viewCount && <span>👁️ {Number(game.viewCount).toLocaleString()}</span>}
-                    {game.likeCount && <span>❤️ {Number(game.likeCount).toLocaleString()}</span>}
-                  </div>
-                  <div className={styles.gameMeta}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                      <span>{new Date(game.createdAt).toLocaleDateString()}</span>
-                      {game.winners && game.winners.find((w: any) => w.category === 'MAIN') && (
-                        <span style={{ fontSize: '0.75rem', color: 'hsl(var(--primary))', fontWeight: 600 }}>
-                          🏆 {game.winners.find((w: any) => w.category === 'MAIN').userName}
-                        </span>
-                      )}
-                    </div>
-                    <span>{game.status === 'FINISHED' ? 'Completed' : 'Live'}</span>
-                  </div>
-                </a>
+            <section className={styles.recent}>
+              <h2>Недавние игры</h2>
+              <div className={styles.gameList}>
+                {games.map((game) => (
+                  <div key={game.id} className={styles.cardWrapper}>
+                    <a href={`/games/${game.id}`} className={`${styles.gameCard} glass-card ${game.isPinned ? styles.pinnedCard : ""}`} style={{ position: 'relative' }}>
+                      {game.isPinned && <div className={styles.pinIndicator}>📌</div>}
+                      <div className={styles.gameInfo}>
+                        <div className={styles.titleWrapper}>
+                          <h3 className={styles.videoTitle}>{game.videoTitle || "Untitled Video"}</h3>
+                          <span className={styles.videoIdSmall}>ID: {game.videoId}</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexShrink: 0 }}>
+                          <span className={`${styles.status} ${styles[game.status.toLowerCase()]}`}>
+                            {statusMap[game.status] || game.status}
+                          </span>
+                          {game.prizeMain && <span className={styles.prizeBadge} title={`Приз: ${game.prizeMain}`}>🎁</span>}
+                        </div>
+                      </div>
+                      <div className={styles.gameStatsMini}>
+                        {game.viewCount && <span>👁️ {Number(game.viewCount).toLocaleString()}</span>}
+                        {game.likeCount && <span>❤️ {Number(game.likeCount).toLocaleString()}</span>}
+                      </div>
+                      <div className={styles.gameMeta}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                          <span>{new Date(game.createdAt).toLocaleDateString()}</span>
+                          {game.winners && game.winners.find((w: any) => w.category === 'MAIN') && (
+                            <span style={{ fontSize: '0.75rem', color: 'hsl(var(--primary))', fontWeight: 600 }}>
+                              🏆 {game.winners.find((w: any) => w.category === 'MAIN').userName}
+                            </span>
+                          )}
+                        </div>
+                        <span>{game.status === 'FINISHED' ? 'Completed' : 'Live'}</span>
+                      </div>
+                    </a>
 
-                <div className={styles.menuContainer}>
-                  <button
-                    className={styles.menuBtn}
-                    onClick={() => setOpenMenuId(openMenuId === game.id ? null : game.id)}
-                  >
-                    ⋮
-                  </button>
-                  {openMenuId === game.id && (
-                    <div className={styles.dropdown}>
-                      <button onClick={() => router.push(`/games/${game.id}`)}>Открыть</button>
-                      <button onClick={async () => {
-                        const token = localStorage.getItem("comentix_auth_token");
-                        await fetch(`/api/games/${game.id}`, {
-                          method: 'PATCH',
-                          headers: { 'Content-Type': 'application/json', 'Authorization': token || "" },
-                          body: JSON.stringify({ isPinned: !game.isPinned })
-                        });
-                        window.location.reload();
-                      }}>
-                        {game.isPinned ? 'Открепить' : 'Закрепить'}
-                      </button>
+                    <div className={styles.menuContainer}>
                       <button
-                        className={styles.deleteBtn}
-                        onClick={async () => {
-                          if (confirm('Удалить эту игру и всю её историю?')) {
+                        className={styles.menuBtn}
+                        onClick={() => setOpenMenuId(openMenuId === game.id ? null : game.id)}
+                      >
+                        ⋮
+                      </button>
+                      {openMenuId === game.id && (
+                        <div className={styles.dropdown}>
+                          <button onClick={() => router.push(`/games/${game.id}`)}>Открыть</button>
+                          <button onClick={async () => {
                             const token = localStorage.getItem("comentix_auth_token");
                             await fetch(`/api/games/${game.id}`, {
-                              method: 'DELETE',
-                              headers: { 'Authorization': token || "" }
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json', 'Authorization': token || "" },
+                              body: JSON.stringify({ isPinned: !game.isPinned })
                             });
                             window.location.reload();
-                          }
-                        }}
-                      >
-                        Удалить
-                      </button>
+                          }}>
+                            {game.isPinned ? 'Открепить' : 'Закрепить'}
+                          </button>
+                          <button
+                            className={styles.deleteBtn}
+                            onClick={async () => {
+                              if (confirm('Удалить эту игру и всю её историю?')) {
+                                const token = localStorage.getItem("comentix_auth_token");
+                                await fetch(`/api/games/${game.id}`, {
+                                  method: 'DELETE',
+                                  headers: { 'Authorization': token || "" }
+                                });
+                                window.location.reload();
+                              }
+                            }}
+                          >
+                            Удалить
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
+                  </div>
+                ))}
+                {games.length === 0 && <p className={styles.empty}>Никаких игр еще не создано. Будьте первым!</p>}
               </div>
-            ))}
-            {games.length === 0 && <p className={styles.empty}>Никаких игр еще не создано. Будьте первым!</p>}
-          </div>
-        </section>
+            </section>
+          </section>
+        )}
       </div>
     </main>
   );

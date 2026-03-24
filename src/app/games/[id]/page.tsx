@@ -1,20 +1,45 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useState, use, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import styles from "./game.module.css";
 
 export default function GamePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  return (
+    <Suspense fallback={<div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.5)' }}>Загрузка компонентов...</div>}>
+      <GamePageContent id={id} />
+    </Suspense>
+  );
+}
+
+function GamePageContent({ id }: { id: string }) {
+  const searchParams = useSearchParams();
+  const isAdminQuery = searchParams.get("admin") === "true";
+
   const [game, setGame] = useState<any>(null);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [endTime, setEndTime] = useState<number | null>(null);
   const [clockOffset, setClockOffset] = useState<number>(0);
   const [prolongAmount, setProlongAmount] = useState<number>(10);
   const [adminPassword, setAdminPassword] = useState<string>("");
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [showModal, setShowModal] = useState<boolean>(false);
   const [showEditModal, setShowEditModal] = useState<boolean>(false);
   const [expandedReasons, setExpandedReasons] = useState<Record<string, boolean>>({});
+  const [commentLimit, setCommentLimit] = useState<number>(10);
+
+  // Check for saved password on mount
+  useEffect(() => {
+    const saved = localStorage.getItem(`comentix_admin_${id}`);
+    const globalToken = localStorage.getItem("comentix_auth_token");
+    const token = saved || globalToken;
+    if (token) {
+      setAdminPassword(token);
+      setIsAdmin(true);
+    }
+  }, [id]);
 
   const toggleReason = (commentId: string) => {
     setExpandedReasons(prev => ({ ...prev, [commentId]: !prev[commentId] }));
@@ -79,18 +104,23 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
 
   const handleProlongClick = () => {
     if (!game || game.status !== 'ACTIVE') return;
-    setShowModal(true);
+    if (isAdmin) {
+      confirmProlong(adminPassword);
+    } else {
+      setShowModal(true);
+    }
   };
 
-  const confirmProlong = async () => {
-    if (!adminPassword) return;
+  const confirmProlong = async (passwordOverride?: string) => {
+    const pass = passwordOverride || adminPassword;
+    if (!pass) return;
 
     try {
       const res = await fetch(`/api/games/${id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": adminPassword
+          "Authorization": pass
         },
         body: JSON.stringify({ addSeconds: prolongAmount })
       });
@@ -100,9 +130,18 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
         setGame(updatedData);
         if (updatedData.endTime !== undefined) setEndTime(updatedData.endTime);
         setShowModal(false);
-        setAdminPassword("");
+        // Save to local storage
+        localStorage.setItem(`comentix_admin_${id}`, pass);
+        localStorage.setItem("comentix_auth", "true");
+        localStorage.setItem("comentix_auth_token", pass);
+        setIsAdmin(true);
       } else {
         alert("Ошибка: Неверный пароль или игра неактивна");
+        if (passwordOverride) {
+          localStorage.removeItem(`comentix_admin_${id}`);
+          setIsAdmin(false);
+          setAdminPassword("");
+        }
       }
     } catch (err) {
       console.error("Prolong error", err);
@@ -131,7 +170,8 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
           ...data,
           includeOldComments: formData.get("includeOldComments") === "on",
           keywords: (data.keywords as string).split(',').map(k => k.trim()).filter(k => k !== ""),
-          currency: data.currency
+          currency: data.currency,
+          randomAllCount: Number(data.randomAllCount) || 1
         })
       });
 
@@ -139,7 +179,11 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
         const updated = await res.json();
         setGame((prev: any) => ({ ...prev, ...updated }));
         setShowEditModal(false);
-        setAdminPassword("");
+        // Save to local storage
+        localStorage.setItem(`comentix_admin_${id}`, adminPassword);
+        localStorage.setItem("comentix_auth", "true");
+        localStorage.setItem("comentix_auth_token", adminPassword);
+        setIsAdmin(true);
         alert("Настройки успешно обновлены!");
       } else {
         alert("Ошибка при обновлении. Проверьте пароль.");
@@ -157,24 +201,35 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
   };
 
   useEffect(() => {
+    let interval: NodeJS.Timeout;
     const poll = async () => {
       try {
-        const res = await fetch(`/api/games/${id}/poll`, { method: "POST" });
+        const res = await fetch(`/api/games/${id}/poll`, { 
+            method: "POST",
+            cache: 'no-store' // Ensure no stale cache
+        });
+        if (!res.ok) throw new Error("Poll failed");
         const data = await res.json();
-        setGame(data);
-        if (data.serverTime) {
-          setClockOffset(data.serverTime - Date.now());
+        
+        // Critical: Only update if we got valid data to prevent flickering
+        if (data && data.id) {
+            setGame(data);
+            if (data.serverTime) {
+              setClockOffset(data.serverTime - Date.now());
+            }
+            if (data.endTime !== undefined) setEndTime(data.endTime);
+            else if (data.timeLeft !== undefined) setTimeLeft(data.timeLeft);
         }
-        if (data.endTime !== undefined) setEndTime(data.endTime);
-        else if (data.timeLeft !== undefined) setTimeLeft(data.timeLeft);
       } catch (err) {
         console.error("Poll fail", err);
       }
     };
 
     poll();
-    const interval = setInterval(poll, 5000);
-    return () => clearInterval(interval);
+    interval = setInterval(poll, 3000); // Poll slightly faster for smoothness
+    return () => {
+        if (interval) clearInterval(interval);
+    };
   }, [id]);
 
   useEffect(() => {
@@ -204,18 +259,18 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
 
   return (
     <main className={styles.gameContainer}>
-      <div className={styles.mainContent}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className={styles.topActions}>
           <Link href="/" className={styles.backLink}>
             ← На главную
           </Link>
-          {game.status !== 'FINISHED' && (
+          {game.status !== 'FINISHED' && (isAdmin || isAdminQuery) && (
             <button className={styles.adminBtn} onClick={() => setShowEditModal(true)}>
               ⚙️ Настроить игру
             </button>
           )}
         </div>
-        <section className={`${styles.timerCard} glass-card animate-fade-in`}>
+        <div className={styles.mainColumn}>
+          <section className={`${styles.timerCard} glass-card animate-fade-in`}>
           <div className={styles.videoHeaderMini}>
             <h1 className={styles.videoTitleMain}>
               <a 
@@ -224,7 +279,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
                 rel="noopener noreferrer"
                 className={styles.videoTitleLink}
               >
-                {game.videoTitle || "Загрузка названия..."}
+                <span className={styles.ytIcon}>📺</span> {game.videoTitle || "Загрузка названия..."}
               </a>
             </h1>
             <div className={styles.videoStatsRow}>
@@ -244,9 +299,9 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
                     {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
                 </>
             )) : "--:--"}
-            {game.status === 'ACTIVE' && (
+            {game.status === 'ACTIVE' && isAdmin && (
               <div className={styles.prolongContainer}>
-                <button className={styles.prolongBtn} onClick={handleProlongClick} title="Продлить время">
+                <button className={styles.prolongBtn} onClick={() => handleProlongClick()} title="Продлить время">
                   + {prolongAmount}с
                 </button>
                 <button className={styles.cycleBtn} onClick={cycleProlongAmount} title="Изменить время">
@@ -255,6 +310,9 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
               </div>
             )}
           </div>
+          <p className={styles.timerHint}>
+            Игра закончится, когда таймер истечет
+          </p>
           {game.bonusTime > 0 && (
             <div className={styles.bonusTime}>
               <span className={styles.bonusLabel}>🔥 Бонусное время (от комментов):</span>
@@ -263,13 +321,14 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
           )}
         </section>
 
-        <section className={`${styles.commentsSection} glass-card`}>
+
+          <section className={`${styles.commentsSection} glass-card`}>
           <h2>
             <div className={styles.liveIndicator}></div>
             Лента комментариев
           </h2>
           <div className={styles.commentList}>
-            {game.comments?.map((c: any) => (
+            {game.comments?.slice(0, commentLimit).map((c: any) => (
               <div
                 key={c.id}
                 className={`${styles.comment} glass-card ${c.status === "INVALID" ? styles.invalid : ""}`}
@@ -300,30 +359,91 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
               </div>
             ))}
             {(!game.comments || game.comments.length === 0) && <p className={styles.empty}>Здесь пусто... Будьте первым, кто напишет!</p>}
+            {game.comments && game.comments.length > 10 && (
+              <button 
+                className={styles.showMoreBtn} 
+                onClick={() => setCommentLimit(prev => prev === 10 ? 50 : 10)}
+              >
+                {commentLimit === 10 ? `Показать все (${game.comments.length})` : "Скрыть лишние"}
+              </button>
+            )}
           </div>
         </section>
       </div>
 
       <aside className={`${styles.sidebar} animate-fade-in`}>
+        <section className={`${styles.rulesCard} glass-card`}>
+          <h2>📜 Правила игры</h2>
+          <ul className={styles.rulesList}>
+            <li>
+              <span>•</span>
+              Минимальный текст: <strong>{game.minWords} слов / {game.minChars} симв.</strong>
+            </li>
+            {game.minSentences > 0 && (
+              <li>
+                <span>•</span>
+                Минимум предложений: <strong>{game.minSentences}</strong>
+              </li>
+            )}
+            <li>
+              <span>•</span>
+              Антиспам: <strong>{game.antiSpamConfig} мин.</strong> пауза
+            </li>
+            <li>
+              <span>•</span>
+              Новый коммент: <strong>+{formatTimeSeconds(game.prolongTime)}</strong> к таймеру
+            </li>
+            <li>
+              <span>•</span>
+              Тишина <strong>{formatTimeSeconds(game.silencePeriod)}</strong> завершит игру
+            </li>
+            {game.keywords && JSON.parse(game.keywords).length > 0 && (
+              <li style={{ alignItems: 'flex-start' }}>
+                <span style={{ marginTop: '0.2rem' }}>•</span>
+                <span>
+                  Нужны слова: <strong>{JSON.parse(game.keywords).join(', ')}</strong>
+                </span>
+              </li>
+            )}
+            {game.additionalRules && (
+              <li className={styles.additionalRules}>
+                <span className={styles.ruleIcon}>📝</span>
+                <div className={styles.ruleText}>
+                  {game.additionalRules}
+                </div>
+              </li>
+            )}
+          </ul>
+        </section>
+
         <div className={`${styles.sidebarCard} glass-card`}>
           <h2>🏆 Призовой фонд</h2>
           <div className={styles.prizesBox}>
+            {(!game.prizeMain && !game.prizeLastN && !game.prizeFirstN && !game.prizeRandomAll) && (
+              <p className={styles.emptyHint}>Призовой фонд пока не настроен</p>
+            )}
             {game.prizeMain && (
                 <div className={styles.prizeItem}>
                   <span className={styles.cat}>Главный приз:</span>
-                  <span className={styles.val}>{game.prizeMain} {game.currency}</span>
+                  <span className={styles.val}>{game.prizeMain} {game.currency || "₸"}</span>
                 </div>
             )}
             {game.prizeLastN && (
                 <div className={styles.prizeItem}>
                   <span className={styles.cat}>Последних {game.lastNCount}:</span>
-                  <span className={styles.val}>{game.prizeLastN} {game.currency}</span>
+                  <span className={styles.val}>{game.prizeLastN} {game.currency || "₸"}</span>
                 </div>
             )}
             {game.prizeFirstN && (
                 <div className={styles.prizeItem}>
                   <span className={styles.cat}>Рандом {game.firstNCount}:</span>
-                  <span className={styles.val}>{game.prizeFirstN} {game.currency}</span>
+                  <span className={styles.val}>{game.prizeFirstN} {game.currency || "₸"}</span>
+                </div>
+            )}
+            {game.prizeRandomAll && (
+                <div className={styles.prizeItem}>
+                  <span className={styles.cat}>Рандом всех ({game.randomAllCount}):</span>
+                  <span className={styles.val}>{game.prizeRandomAll} {game.currency || "₸"}</span>
                 </div>
             )}
           </div>
@@ -348,8 +468,10 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
                   } else if (w.category === "LAST_N") {
                     lastNIndex++;
                     categoryLabel = `ПОСЛЕДНИЙ ${lastNIndex}`;
-                  } else {
+                  } else if (w.category === "FIRST_N_RANDOM") {
                     categoryLabel = `РАНДОМ ПЕРВЫХ ${game.firstNCount}`;
+                  } else {
+                    categoryLabel = `РАНДОМ ВСЕХ`;
                   }
 
                   return (
@@ -404,41 +526,6 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
           </div>
         </div>
 
-        <div className={`${styles.sidebarCard} glass-card`}>
-          <h2>📜 Правила игры</h2>
-          <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.9rem', color: 'hsl(var(--text-muted))' }}>
-            <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span style={{ color: 'hsl(var(--primary))' }}>•</span>
-              Минимальный текст: <strong>{game.minWords} слов / {game.minChars} симв.</strong>
-            </li>
-            {game.minSentences > 0 && (
-              <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ color: 'hsl(var(--primary))' }}>•</span>
-                Минимум предложений: <strong>{game.minSentences}</strong>
-              </li>
-            )}
-            <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span style={{ color: 'hsl(var(--primary))' }}>•</span>
-              Антиспам: <strong>{game.antiSpamConfig} мин.</strong> пауза
-            </li>
-            <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span style={{ color: 'hsl(var(--primary))' }}>•</span>
-              Новый коммент: <strong>+{formatTimeSeconds(game.prolongTime)}</strong> к таймеру
-            </li>
-            <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span style={{ color: 'hsl(var(--primary))' }}>•</span>
-              Тишина <strong>{formatTimeSeconds(game.silencePeriod)}</strong> завершит игру
-            </li>
-            {game.keywords && JSON.parse(game.keywords).length > 0 && (
-              <li style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
-                <span style={{ color: 'hsl(var(--primary))', marginTop: '0.2rem' }}>•</span>
-                <span>
-                  Нужны слова: <strong style={{ color: 'hsl(var(--text-main))' }}>{JSON.parse(game.keywords).join(', ')}</strong>
-                </span>
-              </li>
-            )}
-          </ul>
-        </div>
       </aside>
 
       {showModal && (
@@ -464,7 +551,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
               </button>
               <button 
                 className={styles.modalConfirm} 
-                onClick={confirmProlong}
+                onClick={() => confirmProlong()}
               >
                 Подтвердить
               </button>
@@ -534,6 +621,15 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
                 </div>
 
                 <div className={styles.formGroup}>
+                  <label>Приз "Рандом среди всех"</label>
+                  <input name="prizeRandomAll" defaultValue={game.prizeRandomAll} className={styles.formInput} />
+                </div>
+                <div className={styles.formGroup}>
+                  <label>Кол-во призов "Рандом всех"</label>
+                  <input name="randomAllCount" type="number" defaultValue={game.randomAllCount} className={styles.formInput} />
+                </div>
+
+                <div className={styles.formGroup}>
                   <label>Мин. слов</label>
                   <input name="minWords" type="number" defaultValue={game.minWords} className={styles.formInput} />
                 </div>
@@ -549,6 +645,17 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
                     defaultValue={game.keywords ? JSON.parse(game.keywords).join(', ') : ""} 
                     className={styles.formInput}
                     placeholder="слово1, слово2..."
+                  />
+                </div>
+
+                <div className={styles.formGroup} style={{ gridColumn: 'span 2' }}>
+                  <label>Дополнительные правила (текстом)</label>
+                  <textarea 
+                    name="additionalRules" 
+                    defaultValue={game.additionalRules || ""} 
+                    className={styles.formInput} 
+                    style={{ minHeight: '100px', resize: 'vertical' }}
+                    placeholder="Любые свои правила..."
                   />
                 </div>
 
